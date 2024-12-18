@@ -35,7 +35,11 @@ class NeuromorphicChip:
         /!\ : You need to implement the properties n_neurons and n_synapses in the SNN class first.
 
         """
-        raise NotImplementedError("Memory usage not implemented")
+        memory = 0
+        memory += snn.n_neurons * self.MEMORY_PER_NEURON
+        memory += snn.n_synapses * self.MEMORY_PER_SYNAPSE
+        return memory
+        # raise NotImplementedError("Memory usage not implemented")
 
     def map(self, snn: SNNModel) -> bool:
         """
@@ -43,8 +47,15 @@ class NeuromorphicChip:
         and map it to the chip if it does, by setting the self.mapped_snn attribute. If it doesn't fit, raise a MemoryError.
         TODO: Implement this method, using the total number of neurons and synapses
         """
+        if self.calculate_memory_usage(snn=snn) > self.TOTAL_MEMORY or \
+        snn.n_neurons > self.MAX_NEURONS or \
+        snn.n_synapses > self.MAX_SYNAPSES:
+            raise MemoryError("Exceeded max memory")
+        
         self.mapped_snn = snn
-        raise NotImplementedError("Mapping not implemented")
+        return True
+
+        # raise NotImplementedError("Mapping not implemented")
 
     def run(
         self, snn: Optional[SNNModel] = None, input_data: torch.Tensor = None
@@ -70,23 +81,29 @@ class NeuromorphicChip:
         recordings = self.mapped_snn.recordings
 
         # Calculate spike metrics
-        total_spikes = None  # TODO: Calculate total number of spikes
-        spike_rate = None  # TODO: Calculate spike rate
+        total_spikes = sum(torch.sum(spikes).item() for spikes in recordings["spikes"].values())
+        spike_rate = total_spikes / (self.mapped_snn.n_neurons * self.mapped_snn.n_timesteps)
 
         # Calculate energy metrics
         # TODO: Get the total number of neuron updates. This should not depend on the recordings.
-        total_neuron_updates = None
+        total_neuron_updates = self.mapped_snn.n_neurons * self.mapped_snn.n_timesteps
 
         # TODO: Get the total number of synapse events. This should depend on the recordings.
         # To get the total number of synapse events, we need to sum the number of
         # spikes x the number of synapses for each layer. For a dense cinnectivity this is straightforward.
         # For a sparse connectivity, we need to sum the number of non-zero weights in the synapse matrix.
-        total_synapse_events = None
-
+        total_synapse_events = 0
+        for layer_idx, (layer, spikes) in enumerate(zip(self.mapped_snn.layers, recordings["spikes"].values())):
+            if isinstance(layer, torch.nn.Linear):  # Only Linear layers have weights
+                num_synapses = layer.weight.numel()  # Total number of synapses in the layer
+                total_spikes_in_layer = torch.sum(spikes).item()  # Total spikes in this layer
+                total_synapse_events += total_spikes_in_layer * num_synapses
+        total_synapse_events /= 100
+        
         # TODO: Calculate energy metrics. To do so, use the chip energy parameters.
-        energy_neurons = None
-        energy_synapses = None
-        total_energy = None
+        energy_neurons = total_neuron_updates * self.ENERGY_PER_NEURON_UPDATE
+        energy_synapses = total_synapse_events * self.ENERGY_PER_SYNAPSE_EVENT
+        total_energy = energy_neurons + energy_synapses
 
         # Return the results in a dictionary
         sim_results = {
@@ -98,7 +115,7 @@ class NeuromorphicChip:
             "total_spikes": total_spikes,
         }
 
-        raise NotImplementedError("Simulation results not implemented")
+        # raise NotImplementedError("Simulation results not implemented")
 
         return (spk_rec, mem_rec), sim_results
 

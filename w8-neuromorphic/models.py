@@ -144,7 +144,12 @@ class SNNModel(nn.Module):
         TODO: Calculate total number of neurons in the network
         Hint: Use out_features of linear layers or use the dimensions that we used in the initialization
         """
-        raise NotImplementedError("Number of neurons not implemented")
+        total_neurons = 0
+        for layer in self.layers:
+            if isinstance(layer, nn.Linear):  # Only consider Linear layers for neurons?
+                total_neurons += layer.out_features
+        return total_neurons
+        # raise NotImplementedError("Number of neurons not implemented")
 
     @property
     def n_synapses(self) -> int:
@@ -154,7 +159,12 @@ class SNNModel(nn.Module):
         Hint: you can use torch.count_nonzero(...), but remember to copy back to CPU with .cpu().data.item()
         Optional: Use weight masks to create sparse connectivity in the network, to reduce this number !
         """
-        raise NotImplementedError("Number of synapses not implemented")
+        total_synapses = 0
+        for layer in self.layers:
+            if isinstance(layer, nn.Linear):    # Only consider Linear layers for synapses?
+                total_synapses += torch.count_nonzero(layer.weight).cpu().data.item()
+        return total_synapses
+        # raise NotImplementedError("Number of synapses not implemented")
 
     def __repr__(self):
         return f"SNNModel(n_neurons={self.n_neurons}, n_synapses={self.n_synapses})"
